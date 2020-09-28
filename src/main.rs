@@ -2,7 +2,7 @@ mod aes;
 mod utils;
 mod constants;
 
-use aes::{KeyTextPair, Base};
+use aes::{KeyLength, KeyTextPair, Base};
 use std::{
     fs::File,
     io::{prelude::*, BufReader},
@@ -19,6 +19,7 @@ fn main() {
     let input_data= KeyTextPair {
         cipher_key: Base::Hex("59454c4c4f57205355424d4152494e45".to_string()),
         cipher_text: Base::Base64(content),
+        key_length: KeyLength::AES128,
     };
 
     let decrypted_bytes= aes::aes_decrypt(input_data);

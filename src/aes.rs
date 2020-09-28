@@ -6,15 +6,22 @@ use crate::utils::{
 };
 
 type Grid = Vec<Vec<u8>>;
+pub enum Base {
+    Base64(String),
+    Hex(String),
+}
+
+#[derive(Clone)]
+pub enum KeyLength {
+    AES128 = 128,
+    // AES192 = 192,
+    // AES256 = 256,
+}
 
 pub struct KeyTextPair {
     pub cipher_key: Base,
     pub cipher_text: Base,
-}
-
-pub enum Base {
-    Base64(String),
-    Hex(String),
+    pub key_length: KeyLength,
 }
 
 pub trait AESGrid {
@@ -149,10 +156,12 @@ pub fn utf8_from_aes_grids(grids: Vec<Grid>) -> Result<String, str::Utf8Error> {
     Ok(s.to_string())
 }
 
-pub fn to_aes_grids(cipher_key: Vec<u8>) -> Vec<Grid> {
+pub fn to_aes_grids(cipher_key: Vec<u8>, key_length: KeyLength) -> Vec<Grid> {
     let mut res = Vec::new();
 
-    for a in cipher_key.chunks(16) {
+    let chunk_size = (key_length as usize) / 8;
+
+    for a in cipher_key.chunks(chunk_size) {
         let mut aes_grid = vec![vec![0u8; 4]; 4];
 
         // transpose vals into AES grid
@@ -232,11 +241,13 @@ pub fn sbox(byte: u8) -> u8 {
     constants::SBOX[row as usize][column as usize]
 }
 
-// main function
+// main decryption function
 pub fn aes_decrypt(encrypted_text: KeyTextPair) -> Vec<Grid> {
+    let key_length = encrypted_text.key_length;
+
     let ct = match encrypted_text.cipher_text {
-        Base::Base64(val) => to_aes_grids(utils::from_base64(&val)),
-        Base::Hex(val) => to_aes_grids(utils::from_hex(&val)),
+        Base::Base64(val) => to_aes_grids(utils::from_base64(&val), key_length),
+        Base::Hex(val) => to_aes_grids(utils::from_hex(&val), key_length),
     };
 
     let mut ck = match encrypted_text.cipher_key {
@@ -259,10 +270,6 @@ pub fn aes_decrypt(encrypted_text: KeyTextPair) -> Vec<Grid> {
 mod tests {
 
     use super::*;
-    use std::{
-        fs::File,
-        io::{prelude::*, BufReader},
-    };
 
     #[test]
     fn test_mix_columns_inv() {
@@ -319,14 +326,16 @@ mod tests {
             vec![0x4C, 0x53, 0x41, 0x45],
         ];
 
-        let actual = to_aes_grid("YELLOW SUMBARINE".as_bytes().to_vec());
+        let input = "YELLOW SUMBARINE".as_bytes().to_vec();
+        let actual = to_aes_grid(input);
 
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn test_generate_round_keys() {
-        let mut grid = to_aes_grid("YELLOW SUMBARINE".as_bytes().to_vec());
+        let input = "YELLOW SUMBARINE".as_bytes().to_vec();
+        let mut grid= to_aes_grid(input);
 
         let actual: Vec<String> = generate_round_keys(&mut grid)
             .iter()
@@ -351,7 +360,7 @@ mod tests {
         let cipher_text = utils::from_hex(
             "459264f4798f6a78bacb89c15ed3d601459264f4798f6a78bacb89c15ed3d601",
         );
-        let actual = &mut to_aes_grids(cipher_text);
+        let actual = &mut to_aes_grids(cipher_text, KeyLength::AES128);
 
         let expected = vec![
             vec![
@@ -376,6 +385,7 @@ mod tests {
         let test_data = KeyTextPair {
             cipher_key: Base::Hex("00000000000000000000000000000000".to_string()),
             cipher_text: Base::Hex("0336763E966D92595A567CC9CE537F5E".to_string()),
+            key_length: KeyLength::AES128,
         };
 
         let actual = aes_decrypt(test_data);
@@ -395,6 +405,7 @@ mod tests {
         let test_data = KeyTextPair {
             cipher_key: Base::Hex("00000000000000000000000000000000".to_string()),
             cipher_text: Base::Hex("459264f4798f6a78bacb89c15ed3d601".to_string()),
+            key_length: KeyLength::AES128,
         };
 
         let actual = aes_decrypt(test_data);
@@ -416,6 +427,7 @@ mod tests {
             cipher_text: Base::Hex(
                 "0336763E966D92595A567CC9CE537F5E459264f4798f6a78bacb89c15ed3d601".to_string(),
             ),
+            key_length: KeyLength::AES128,
         };
 
         let actual = aes_decrypt(test_data);
@@ -443,6 +455,7 @@ mod tests {
         let test_data = KeyTextPair {
             cipher_key: Base::Hex("2b7e151628aed2a6abf7158809cf4f3c".to_string()),
             cipher_text: Base::Hex("3925841d02dc09fbdc118597196a0b32".to_string()),
+            key_length: KeyLength::AES128,
         };
 
         let actual = aes_decrypt(test_data);
@@ -455,31 +468,6 @@ mod tests {
         ]];
 
         assert_eq!(expected, actual);
-    }
-
-    #[test]
-    #[ignore]
-    fn test_cryptopals_decrypt() {
-        let mut content = String::new();
-        let file = File::open("input/s1_c7.txt").unwrap();
-        for line in BufReader::new(file).lines() {
-            content.push_str(line.unwrap().trim());
-        }
-
-        let test_data = KeyTextPair {
-            cipher_key: Base::Hex("59454c4c4f57205355424d4152494e45".to_string()),
-            cipher_text: Base::Base64(content),
-        };
-
-        let res = aes_decrypt(test_data);
-
-        let _actual = utf8_from_aes_grids(res);
-
-        let mut file = File::open("s1_c7_expected.txt").unwrap();
-        let mut expected = String::new();
-        file.read_to_string(&mut expected).unwrap();
-
-        // assert_eq!(expected, actual);
     }
 }
 
