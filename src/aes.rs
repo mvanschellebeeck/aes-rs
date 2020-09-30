@@ -11,11 +11,11 @@ pub enum Base {
     Hex(String),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub enum KeyLength {
     AES128 = 128,
-    // AES192 = 192,
-    // AES256 = 256,
+    AES192 = 192,
+    AES256 = 256,
 }
 
 pub struct KeyTextPair {
@@ -130,12 +130,16 @@ pub fn xor(a: Vec<u8>, b: Vec<u8>) -> Vec<u8> {
     a.iter().zip(b.iter()).map(|(i1, i2)| i1 ^ i2).collect()
 }
 
-pub fn to_aes_grid(cipher_key: Vec<u8>) -> Grid {
-    let mut aes_grid = vec![vec![0u8; 4]; 4];
+pub fn to_cipher_key_grid(cipher_key: Vec<u8>, key_length: KeyLength) -> Grid {
+    let (mut aes_grid, rows) = match key_length {
+        KeyLength::AES128 => (vec![vec![0u8; 4]; 4], 4),
+        KeyLength::AES192 => (vec![vec![0u8; 4]; 6], 6),
+        KeyLength::AES256 => (vec![vec![0u8; 4]; 8], 8),
+    };
 
     // transpose vals into AES grid
     for (index, &ch) in cipher_key.iter().enumerate() {
-        aes_grid[index % 4][index / 4] = ch;
+        aes_grid[index % rows][index / rows] = ch;
     }
 
     aes_grid
@@ -173,11 +177,15 @@ pub fn to_aes_grids(cipher_key: Vec<u8>, key_length: KeyLength) -> Vec<Grid> {
     res
 }
 
-pub fn generate_round_keys(grid: &mut Grid) -> Vec<Grid> {
-    let rounds: usize = 10;
-    let mut round_keys: Vec<Grid> = Vec::with_capacity(rounds);
-    round_keys.push(grid.clone());
-    let mut current: Vec<u8> = vec![0; 4];
+pub fn generate_round_keys(grid: &mut Grid, key_length: KeyLength) -> Vec<Grid> {
+
+    let (rounds, mut current): (usize, Vec<u8>) = match key_length  {
+        KeyLength::AES128 => (10, vec![0; 4]),
+        KeyLength::AES192 => (12, vec![0; 6]),
+        KeyLength::AES256 => (14, vec![0; 8]),
+    };
+
+    let mut round_keys = vec![grid.clone()];
 
     for round_no in 0..rounds {
         for column_index in 0..4 {
@@ -198,7 +206,6 @@ pub fn generate_round_keys(grid: &mut Grid) -> Vec<Grid> {
         }
         round_keys.push(grid.clone());
     }
-
     round_keys
 }
 
@@ -251,11 +258,11 @@ pub fn aes_decrypt(encrypted_text: KeyTextPair) -> Vec<Grid> {
     };
 
     let mut ck = match encrypted_text.cipher_key {
-        Base::Base64(val) => to_aes_grid(utils::from_base64(&val)),
-        Base::Hex(val) => to_aes_grid(utils::from_hex(&val)),
+        Base::Base64(val) => to_cipher_key_grid(utils::from_base64(&val), key_length),
+        Base::Hex(val) => to_cipher_key_grid(utils::from_hex(&val), key_length),
     };
 
-    let round_keys = generate_round_keys(&mut ck);
+    let round_keys = generate_round_keys(&mut ck, key_length);
     let mut res = Vec::new();
 
     for grid in ct.iter() {
@@ -327,7 +334,7 @@ mod tests {
         ];
 
         let input = "YELLOW SUMBARINE".as_bytes().to_vec();
-        let actual = to_aes_grid(input);
+        let actual = to_cipher_key_grid(input, KeyLength::AES128);
 
         assert_eq!(expected, actual);
     }
@@ -335,9 +342,9 @@ mod tests {
     #[test]
     fn test_generate_round_keys() {
         let input = "YELLOW SUMBARINE".as_bytes().to_vec();
-        let mut grid= to_aes_grid(input);
+        let mut grid= to_cipher_key_grid(input, KeyLength::AES128);
 
-        let actual: Vec<String> = generate_round_keys(&mut grid)
+        let actual: Vec<String> = generate_round_keys(&mut grid, KeyLength::AES128)
             .iter()
             .flat_map(|rk| rk.to_hex())
             .collect();
