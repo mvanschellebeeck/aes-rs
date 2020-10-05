@@ -179,10 +179,11 @@ pub fn to_aes_grids(cipher_key: Vec<u8>, key_length: KeyLength) -> Vec<Grid> {
 
 pub fn generate_round_keys(grid: &mut Grid, key_length: KeyLength) -> Vec<Grid> {
 
-    let (rounds, mut current): (usize, Vec<u8>) = match key_length  {
-        KeyLength::AES128 => (10, vec![0; 4]),
-        KeyLength::AES192 => (12, vec![0; 6]),
-        KeyLength::AES256 => (14, vec![0; 8]),
+    // n: as the length of the key in 32-bit words:  
+    let (rounds, mut current, n): (usize, Vec<u8>, usize) = match key_length  {
+        KeyLength::AES128 => (10, vec![0; 4], 4),
+        KeyLength::AES192 => (12, vec![0; 6], 6),
+        KeyLength::AES256 => (14, vec![0; 8], 8),
     };
 
     let mut round_keys = vec![grid.clone()];
@@ -196,7 +197,12 @@ pub fn generate_round_keys(grid: &mut Grid, key_length: KeyLength) -> Vec<Grid> 
                 // SubBytes
                 bytes_3 = bytes_3.iter().map(|&b| sbox(b)).collect::<Vec<u8>>();
                 let bytes_0 = grid.get_column(0);
-                xor(xor(bytes_0, bytes_3), constants::RCON[round_no].to_vec())
+                // if rounds == 12 {
+                    // xor(xor(bytes_0, bytes_3), vec![constants::RCON_192[round_no], 0, 0, 0])
+                // } else {
+                    xor(xor(bytes_0, bytes_3), vec![constants::RCON_128[round_no], 0, 0, 0])
+                // }
+               
             } else {
                 let bytes = grid.get_column(column_index);
                 xor(bytes, current.clone())
@@ -358,6 +364,75 @@ mod tests {
             "9a0d93e5", "58fe3f6a", "38bdd08b", "1bdc2990", "81d1ba75", "500aa266", "68b772ed",
             "736b5b7d", "f2bae108",
         ];
+
+        assert_eq!(expected, actual);
+    }
+
+    #[ignore]
+    #[test]
+    fn test_generate_round_keys2() {
+        let key_length = KeyLength::AES192;
+        let input = "YELLOW SUMBARINE TEST AB".as_bytes().to_vec();
+        let mut grid= to_cipher_key_grid(input, key_length);
+
+        let actual: Vec<String> = generate_round_keys(&mut grid, key_length)
+            .iter()
+            .flat_map(|rk| rk.to_hex())
+            .collect();
+
+        let expected = vec![
+            "59454c4c", 
+            "4f572053", 
+            "554d4241", 
+            "52494e45", 
+            "20544553", 
+            "54204142", 
+            "efc6606c", 
+            "a091403f", 
+            "f5dc027e", 
+            "a7954c3b", 
+            "87c10968", 
+            "d3e1482a", 
+            "1594850a", 
+            "b505c535", 
+            "40d9c74b", 
+            "e74c8b70", 
+            "608d8218", 
+            "b36cca32", 
+            "41e0a667", 
+            "f4e56352", 
+            "b43ca419", 
+            "53702f69", 
+            "33fdad71", 
+            "80916743", 
+            "c865bcaa", 
+            "3c80dff8", 
+            "88bc7be1", 
+            "dbcc5488", 
+            "e831f9f9", 
+            "68a09eba", 
+            "386e48ef", 
+            "04ee9717", 
+            "8c52ecf6", 
+            "579eb87e", 
+            "bfaf4187", 
+            "d70fdf3d", 
+            "6ef06fe1", 
+            "6a1ef8f6", 
+            "e64c1400", 
+            "b1d2ac7e", 
+            "0e7dedf9", 
+            "d97232c4", 
+            "6ed373d4", 
+            "04cd8b22", 
+            "e2819f22", 
+            "5353335c", 
+            "5d2edea5", 
+            "845cec61", 
+            "a41d9c8b", 
+            "a0d017a9", 
+            "4251888b", 
+            "1102bbd7", ];
 
         assert_eq!(expected, actual);
     }
