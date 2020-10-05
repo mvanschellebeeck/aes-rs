@@ -34,6 +34,7 @@ pub trait AESGrid {
     fn to_hex(&self) -> Vec<String>;
     fn decrypt(&mut self, round_keys: &Vec<Grid>);
     fn polynomial(&self, a: u8, b: u8, c: u8, d: u8, col: usize) -> u8;
+    fn transpose(&mut self) -> Self;
 }
 
 impl AESGrid for Grid {
@@ -123,6 +124,25 @@ impl AESGrid for Grid {
             }
         }
     }
+
+    fn transpose(&mut self) -> Self {
+        if self.len() > 4 {
+            vec![
+                vec![self[0][0], self[1][0], self[2][0], self[3][0], self[4][0], self[5][0]],
+                vec![self[0][1], self[1][1], self[2][1], self[3][1], self[4][1], self[5][1]],
+                vec![self[0][2], self[1][2], self[2][2], self[3][2], self[4][2], self[5][2]],
+                vec![self[0][3], self[1][3], self[2][3], self[3][3], self[4][3], self[5][3]],
+            ]
+        }
+        else {
+            vec![
+                vec![self[0][0], self[1][0], self[2][0], self[3][0]],
+                vec![self[0][1], self[1][1], self[2][1], self[3][1]],
+                vec![self[0][2], self[1][2], self[2][2], self[3][2]],
+                vec![self[0][3], self[1][3], self[2][3], self[3][3]],
+            ]
+        }
+    }
 }
 
 // generalise this to accept unlimited args?
@@ -178,41 +198,55 @@ pub fn to_aes_grids(cipher_key: Vec<u8>, key_length: KeyLength) -> Vec<Grid> {
 }
 
 pub fn generate_round_keys(grid: &mut Grid, key_length: KeyLength) -> Vec<Grid> {
-
-    // n: as the length of the key in 32-bit words:  
-    let (rounds, mut current, n): (usize, Vec<u8>, usize) = match key_length  {
-        KeyLength::AES128 => (10, vec![0; 4], 4),
-        KeyLength::AES192 => (12, vec![0; 6], 6),
-        KeyLength::AES256 => (14, vec![0; 8], 8),
+    // N: length of the key in 32-bit words:  
+    // R: number of round keys required
+    let (R, N): (usize, usize) = match key_length  {
+        KeyLength::AES128 => (11, 4),
+        KeyLength::AES192 => (13, 6),
+        KeyLength::AES256 => (15, 8),
     };
 
-    let mut round_keys = vec![grid.clone()];
+    // It's easier to work with the grid transposed
+    // so play around with a vec of [W[0], W[1], ..., W[4*R - 1]]
+    let mut word_vec = Vec::with_capacity(4*R - 1);
+    println!("pre word_vec: {:?}", grid);
+    word_vec.extend(grid.transpose());
+    println!("word_vec: {:?}", word_vec);
 
-    for round_no in 0..rounds {
-        for column_index in 0..4 {
-            current = if column_index == 0 {
-                // RotWord
-                let mut bytes_3 = grid.get_column(3);
-                bytes_3.rotate_left(1);
-                // SubBytes
-                bytes_3 = bytes_3.iter().map(|&b| sbox(b)).collect::<Vec<u8>>();
-                let bytes_0 = grid.get_column(0);
-                // if rounds == 12 {
-                    // xor(xor(bytes_0, bytes_3), vec![constants::RCON_192[round_no], 0, 0, 0])
-                // } else {
-                    xor(xor(bytes_0, bytes_3), vec![constants::RCON_128[round_no], 0, 0, 0])
-                // }
-               
-            } else {
-                let bytes = grid.get_column(column_index);
-                xor(bytes, current.clone())
-            };
-
-            grid.set_column(current.clone(), column_index);
+    for i in 0..4*R {
+        if i < N {
+            continue;
         }
-        round_keys.push(grid.clone());
+
+        println!("i: {}", i);
+        let mut prev_word = word_vec[i - 1].clone();
+        let nth_prev_word = word_vec[i - N].clone();
+
+        if i >= N && i % N == 0 {
+            // RotateWord
+            prev_word.rotate_left(1);
+            // SubBytes
+            prev_word = prev_word.iter().map(|&b| sbox(b)).collect::<Vec<u8>>();
+         
+            word_vec.push(xor(
+            xor(nth_prev_word, prev_word),
+            vec![constants::RCON[i / N], 0, 0, 0]
+            ));
+            
+        } else if i >= N && N > 6 && i % N == 4 {
+            word_vec.push(xor(
+                nth_prev_word,
+                prev_word.iter().map(|&b| sbox(b)).collect::<Vec<u8>>()
+            ));
+        } else {
+            word_vec.push(xor(nth_prev_word, prev_word));
+        }
     }
-    round_keys
+
+    // un-transpose
+    word_vec.chunks(4).map(|word| 
+        word.iter().cloned().collect::<Vec<_>>().transpose()
+    ).collect()
 }
 
 // multiplying in a Galois Field
@@ -368,7 +402,6 @@ mod tests {
         assert_eq!(expected, actual);
     }
 
-    #[ignore]
     #[test]
     fn test_generate_round_keys2() {
         let key_length = KeyLength::AES192;
