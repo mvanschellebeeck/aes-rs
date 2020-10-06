@@ -107,9 +107,10 @@ impl AESGrid for Grid {
 
     fn decrypt(&mut self, round_keys: &Vec<Grid>) {
         // iterate over round keys in reverse
+        let last_round = round_keys.len() - 1;
         for (index, round_key) in round_keys.iter().rev().enumerate() {
             self.xor_with(round_key); // add round key
-            if index != 10 {
+            if index != last_round {
                 if index != 0 {
                     self.mix_columns_inv();
                 }
@@ -407,6 +408,31 @@ mod tests {
 
         assert_eq!(expected, actual);
     }
+    #[test]
+    fn test_generate_round_keys_256() {
+        let key_length = KeyLength::AES256;
+        let input = "YELLOW SUBMARINE TEST AB12345678".as_bytes().to_vec();
+        let mut grid = to_cipher_key_grid(input, key_length);
+
+        let actual: Vec<String> = generate_round_keys(&mut grid, key_length)
+            .iter()
+            .flat_map(|rk| rk.to_hex())
+            .collect();
+
+        let expected = vec![
+            "59454c4c", "4f572053", "55424d41", "52494e45", "20544553", "54204142", "31323334",
+            "35363738", "5ddf4bda", "12886b89", "47ca26c8", "1583688d", "79b8000e", "2d98414c",
+            "1caa7278", "299c4540", "81b1427f", "933929f6", "d4f30f3e", "c17067b3", "01e98563",
+            "2c71c42f", "30dbb657", "1947f317", "25bcb2ab", "b6859b5d", "62769463", "a306f3d0",
+            "0b868813", "27f74c3c", "172cfa6b", "0e6b097c", "52bda200", "e438395d", "864ead3e",
+            "25485eee", "34d4d03b", "13239c07", "040f666c", "0a646f10", "01156867", "e52d513a",
+            "6363fc04", "462ba2ea", "6e25eabc", "7d0676bb", "790910d7", "736d7fc7", "1dc7aee8",
+            "f8eaffd2", "9b8903d6", "dda2a13c", "af1fd857", "d219aeec", "ab10be3b", "d87dc1fc",
+            "a2bf1e89", "5a55e15b", "c1dce28d", "1c7e43b1",
+        ];
+
+        assert_eq!(expected, actual);
+    }
 
     #[test]
     fn test_aes_grids() {
@@ -517,6 +543,27 @@ mod tests {
             vec![0x43, 0x5a, 0x31, 0x37],
             vec![0xf6, 0x30, 0x98, 0x07],
             vec![0xa8, 0x8d, 0xa2, 0x34],
+        ]];
+
+        assert_eq!(expected, actual);
+    }
+    #[test]
+    fn test_aes_decrypt256() {
+        let test_data = KeyTextPair {
+            cipher_text: Base::Hex("8d853c88f9aec709b31b4bb3053a639f".to_string()),
+            cipher_key: Base::Hex(
+                "59454c4c4f57205355424d4152494e4520544553542041423132333435363738".to_string(),
+            ),
+            key_length: KeyLength::AES256,
+        };
+
+        let actual = aes_decrypt(test_data);
+
+        let expected = vec![vec![
+            vec![0x00, 0x44, 0x88, 0xCC],
+            vec![0x11, 0x55, 0x99, 0xDD],
+            vec![0x22, 0x66, 0xAA, 0xEE],
+            vec![0x33, 0x77, 0xBB, 0xFF],
         ]];
 
         assert_eq!(expected, actual);
