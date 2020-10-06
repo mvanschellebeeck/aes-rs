@@ -1,9 +1,6 @@
-use std::str;
 use crate::constants;
-use crate::utils::{
-    self,
-    BaseConversion
-};
+use crate::utils::{self, BaseConversion};
+use std::str;
 
 type Grid = Vec<Vec<u8>>;
 pub enum Base {
@@ -38,7 +35,6 @@ pub trait AESGrid {
 }
 
 impl AESGrid for Grid {
-
     fn to_hex(&self) -> Vec<String> {
         let mut res = Vec::new();
         for column in 0..4 {
@@ -87,18 +83,18 @@ impl AESGrid for Grid {
     // b2 = (13 * d0) XOR ( 9 * d1) XOR (14 * d2) XOR (11 * d3)
     // b3 = (11 * d0) XOR (13 * d1) XOR ( 9 * d2) XOR (14 * d3)
 
-    fn polynomial(&self, d0: u8, d1: u8, d2: u8, d3: u8, col: usize) -> u8{
+    fn polynomial(&self, d0: u8, d1: u8, d2: u8, d3: u8, col: usize) -> u8 {
         // a + bx^3 + cx^2 + d ...
         gf_mult(d0, self[0][col])
-        ^ gf_mult(d1, self[1][col])
-        ^ gf_mult(d2, self[2][col])
-        ^ gf_mult(d3, self[3][col])
+            ^ gf_mult(d1, self[1][col])
+            ^ gf_mult(d2, self[2][col])
+            ^ gf_mult(d3, self[3][col])
     }
 
     fn mix_columns_inv(&mut self) {
         for column in 0..4 {
             self.set_column(
-                vec![                    
+                vec![
                     self.polynomial(14, 11, 13, 9, column),
                     self.polynomial(9, 14, 11, 13, column),
                     self.polynomial(13, 9, 14, 11, column),
@@ -127,7 +123,7 @@ impl AESGrid for Grid {
         let mut vecs = vec![];
         for column in 0..self[0].len() {
             let mut column_vec = vec![];
-            for row in 0..self.len() {                        
+            for row in 0..self.len() {
                 column_vec.push(self[row][column]);
             }
             vecs.push(column_vec)
@@ -188,18 +184,18 @@ pub fn to_aes_grids(cipher_key: Vec<u8>, key_length: KeyLength) -> Vec<Grid> {
 }
 
 pub fn generate_round_keys(grid: &mut Grid, key_length: KeyLength) -> Vec<Grid> {
-    // N: length of the key in 32-bit words:  
+    // N: length of the key in 32-bit words:
     // R: number of round keys required
-    let (R, N): (usize, usize) = match key_length  {
+    let (R, N): (usize, usize) = match key_length {
         KeyLength::AES128 => (11, 4),
         KeyLength::AES192 => (13, 6),
         KeyLength::AES256 => (15, 8),
     };
 
-    let mut word_vec = Vec::with_capacity(4*R - 1);
+    let mut word_vec = Vec::with_capacity(4 * R - 1);
     word_vec.extend(grid.clone());
 
-    for i in 0..4*R {
+    for i in 0..4 * R {
         if i < N {
             continue;
         }
@@ -212,16 +208,15 @@ pub fn generate_round_keys(grid: &mut Grid, key_length: KeyLength) -> Vec<Grid> 
             prev_word.rotate_left(1);
             // SubBytes
             prev_word = prev_word.iter().map(|&b| sbox(b)).collect::<Vec<u8>>();
-         
+
             word_vec.push(xor(
-            xor(nth_prev_word, prev_word),
-            vec![constants::RCON[i / N], 0, 0, 0]
+                xor(nth_prev_word, prev_word),
+                vec![constants::RCON[i / N], 0, 0, 0],
             ));
-            
         } else if i >= N && N > 6 && i % N == 4 {
             word_vec.push(xor(
                 nth_prev_word,
-                prev_word.iter().map(|&b| sbox(b)).collect::<Vec<u8>>()
+                prev_word.iter().map(|&b| sbox(b)).collect::<Vec<u8>>(),
             ));
         } else {
             word_vec.push(xor(nth_prev_word, prev_word));
@@ -229,9 +224,10 @@ pub fn generate_round_keys(grid: &mut Grid, key_length: KeyLength) -> Vec<Grid> 
     }
 
     // un-transpose
-    word_vec.chunks(4).map(|word| 
-        word.iter().cloned().collect::<Vec<_>>().transpose()
-    ).collect()
+    word_vec
+        .chunks(4)
+        .map(|word| word.iter().cloned().collect::<Vec<_>>().transpose())
+        .collect()
 }
 
 // multiplying in a Galois Field
@@ -367,7 +363,7 @@ mod tests {
     #[test]
     fn test_generate_round_keys() {
         let input = "YELLOW SUMBARINE".as_bytes().to_vec();
-        let mut grid= to_cipher_key_grid(input, KeyLength::AES128);
+        let mut grid = to_cipher_key_grid(input, KeyLength::AES128);
 
         let actual: Vec<String> = generate_round_keys(&mut grid, KeyLength::AES128)
             .iter()
@@ -391,7 +387,7 @@ mod tests {
     fn test_generate_round_keys_192() {
         let key_length = KeyLength::AES192;
         let input = "YELLOW SUMBARINE TEST AB".as_bytes().to_vec();
-        let mut grid= to_cipher_key_grid(input, key_length);
+        let mut grid = to_cipher_key_grid(input, key_length);
 
         let actual: Vec<String> = generate_round_keys(&mut grid, key_length)
             .iter()
@@ -399,67 +395,23 @@ mod tests {
             .collect();
 
         let expected = vec![
-            "59454c4c", 
-            "4f572053", 
-            "554d4241", 
-            "52494e45", 
-            "20544553", 
-            "54204142", 
-            "efc6606c", 
-            "a091403f", 
-            "f5dc027e", 
-            "a7954c3b", 
-            "87c10968", 
-            "d3e1482a", 
-            "1594850a", 
-            "b505c535", 
-            "40d9c74b", 
-            "e74c8b70", 
-            "608d8218", 
-            "b36cca32", 
-            "41e0a667", 
-            "f4e56352", 
-            "b43ca419", 
-            "53702f69", 
-            "33fdad71", 
-            "80916743", 
-            "c865bcaa", 
-            "3c80dff8", 
-            "88bc7be1", 
-            "dbcc5488", 
-            "e831f9f9", 
-            "68a09eba", 
-            "386e48ef", 
-            "04ee9717", 
-            "8c52ecf6", 
-            "579eb87e", 
-            "bfaf4187", 
-            "d70fdf3d", 
-            "6ef06fe1", 
-            "6a1ef8f6", 
-            "e64c1400", 
-            "b1d2ac7e", 
-            "0e7dedf9", 
-            "d97232c4", 
-            "6ed373d4", 
-            "04cd8b22", 
-            "e2819f22", 
-            "5353335c", 
-            "5d2edea5", 
-            "845cec61", 
-            "a41d9c8b", 
-            "a0d017a9", 
-            "4251888b", 
-            "1102bbd7", ];
+            "59454c4c", "4f572053", "554d4241", "52494e45", "20544553", "54204142", "efc6606c",
+            "a091403f", "f5dc027e", "a7954c3b", "87c10968", "d3e1482a", "1594850a", "b505c535",
+            "40d9c74b", "e74c8b70", "608d8218", "b36cca32", "41e0a667", "f4e56352", "b43ca419",
+            "53702f69", "33fdad71", "80916743", "c865bcaa", "3c80dff8", "88bc7be1", "dbcc5488",
+            "e831f9f9", "68a09eba", "386e48ef", "04ee9717", "8c52ecf6", "579eb87e", "bfaf4187",
+            "d70fdf3d", "6ef06fe1", "6a1ef8f6", "e64c1400", "b1d2ac7e", "0e7dedf9", "d97232c4",
+            "6ed373d4", "04cd8b22", "e2819f22", "5353335c", "5d2edea5", "845cec61", "a41d9c8b",
+            "a0d017a9", "4251888b", "1102bbd7",
+        ];
 
         assert_eq!(expected, actual);
     }
 
     #[test]
     fn test_aes_grids() {
-        let cipher_text = utils::from_hex(
-            "459264f4798f6a78bacb89c15ed3d601459264f4798f6a78bacb89c15ed3d601",
-        );
+        let cipher_text =
+            utils::from_hex("459264f4798f6a78bacb89c15ed3d601459264f4798f6a78bacb89c15ed3d601");
         let actual = &mut to_aes_grids(cipher_text, KeyLength::AES128);
 
         let expected = vec![
@@ -570,4 +522,3 @@ mod tests {
         assert_eq!(expected, actual);
     }
 }
-

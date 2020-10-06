@@ -60,7 +60,6 @@ pub fn hex_to_char(i: u8) -> char {
     }
 }
 
-
 pub fn from_base64(s: &str) -> Vec<u8> {
     s.chars()
         .map(|b| u8_from_base64(b))
