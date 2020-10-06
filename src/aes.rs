@@ -109,8 +109,6 @@ impl AESGrid for Grid {
         }
     }
 
-
-
     fn decrypt(&mut self, round_keys: &Vec<Grid>) {
         // iterate over round keys in reverse
         for (index, round_key) in round_keys.iter().rev().enumerate() {
@@ -126,22 +124,15 @@ impl AESGrid for Grid {
     }
 
     fn transpose(&mut self) -> Self {
-        if self.len() > 4 {
-            vec![
-                vec![self[0][0], self[1][0], self[2][0], self[3][0], self[4][0], self[5][0]],
-                vec![self[0][1], self[1][1], self[2][1], self[3][1], self[4][1], self[5][1]],
-                vec![self[0][2], self[1][2], self[2][2], self[3][2], self[4][2], self[5][2]],
-                vec![self[0][3], self[1][3], self[2][3], self[3][3], self[4][3], self[5][3]],
-            ]
+        let mut vecs = vec![];
+        for column in 0..self[0].len() {
+            let mut column_vec = vec![];
+            for row in 0..self.len() {                        
+                column_vec.push(self[row][column]);
+            }
+            vecs.push(column_vec)
         }
-        else {
-            vec![
-                vec![self[0][0], self[1][0], self[2][0], self[3][0]],
-                vec![self[0][1], self[1][1], self[2][1], self[3][1]],
-                vec![self[0][2], self[1][2], self[2][2], self[3][2]],
-                vec![self[0][3], self[1][3], self[2][3], self[3][3]],
-            ]
-        }
+        vecs
     }
 }
 
@@ -151,15 +142,14 @@ pub fn xor(a: Vec<u8>, b: Vec<u8>) -> Vec<u8> {
 }
 
 pub fn to_cipher_key_grid(cipher_key: Vec<u8>, key_length: KeyLength) -> Grid {
-    let (mut aes_grid, rows) = match key_length {
-        KeyLength::AES128 => (vec![vec![0u8; 4]; 4], 4),
-        KeyLength::AES192 => (vec![vec![0u8; 4]; 6], 6),
-        KeyLength::AES256 => (vec![vec![0u8; 4]; 8], 8),
+    let mut aes_grid = match key_length {
+        KeyLength::AES128 => Vec::with_capacity(4),
+        KeyLength::AES192 => Vec::with_capacity(6),
+        KeyLength::AES256 => Vec::with_capacity(8),
     };
 
-    // transpose vals into AES grid
-    for (index, &ch) in cipher_key.iter().enumerate() {
-        aes_grid[index % rows][index / rows] = ch;
+    for byte in cipher_key.chunks(4) {
+        aes_grid.push(byte.to_vec());
     }
 
     aes_grid
@@ -206,19 +196,14 @@ pub fn generate_round_keys(grid: &mut Grid, key_length: KeyLength) -> Vec<Grid> 
         KeyLength::AES256 => (15, 8),
     };
 
-    // It's easier to work with the grid transposed
-    // so play around with a vec of [W[0], W[1], ..., W[4*R - 1]]
     let mut word_vec = Vec::with_capacity(4*R - 1);
-    println!("pre word_vec: {:?}", grid);
-    word_vec.extend(grid.transpose());
-    println!("word_vec: {:?}", word_vec);
+    word_vec.extend(grid.clone());
 
     for i in 0..4*R {
         if i < N {
             continue;
         }
 
-        println!("i: {}", i);
         let mut prev_word = word_vec[i - 1].clone();
         let nth_prev_word = word_vec[i - N].clone();
 
@@ -367,10 +352,10 @@ mod tests {
     #[test]
     fn test_to_aes_grid() {
         let expected = vec![
-            vec![0x59, 0x4F, 0x55, 0x52],
-            vec![0x45, 0x57, 0x4D, 0x49],
-            vec![0x4C, 0x20, 0x42, 0x4E],
-            vec![0x4C, 0x53, 0x41, 0x45],
+            vec![0x59, 0x45, 0x4C, 0x4C],
+            vec![0x4F, 0x57, 0x20, 0x53],
+            vec![0x55, 0x4D, 0x42, 0x41],
+            vec![0x52, 0x49, 0x4E, 0x45],
         ];
 
         let input = "YELLOW SUMBARINE".as_bytes().to_vec();
@@ -403,7 +388,7 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_round_keys2() {
+    fn test_generate_round_keys_192() {
         let key_length = KeyLength::AES192;
         let input = "YELLOW SUMBARINE TEST AB".as_bytes().to_vec();
         let mut grid= to_cipher_key_grid(input, key_length);
