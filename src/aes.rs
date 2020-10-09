@@ -15,6 +15,16 @@ pub enum KeyLength {
     AES256 = 256,
 }
 
+pub enum Mode {
+    ECB,
+    CBC,
+    PCBC,
+    CFB,
+    OFB,
+    CTR,
+    GCM,
+}
+
 pub struct KeyTextPair {
     pub cipher_key: Base,
     pub cipher_text: Base,
@@ -196,11 +206,7 @@ pub fn generate_round_keys(grid: &mut Grid, key_length: KeyLength) -> Vec<Grid> 
     let mut word_vec = Vec::with_capacity(4 * R - 1);
     word_vec.extend(grid.clone());
 
-    for i in 0..4 * R {
-        if i < N {
-            continue;
-        }
-
+    for i in N..4 * R {
         let mut prev_word = word_vec[i - 1].clone();
         let nth_prev_word = word_vec[i - N].clone();
 
@@ -271,7 +277,7 @@ pub fn sbox(byte: u8) -> u8 {
 }
 
 // main decryption function
-pub fn aes_decrypt(encrypted_text: KeyTextPair) -> Vec<Grid> {
+pub fn aes_decrypt(encrypted_text: KeyTextPair, mode: Mode) -> Vec<Grid> {
     let key_length = encrypted_text.key_length;
 
     let ct = match encrypted_text.cipher_text {
@@ -466,7 +472,7 @@ mod tests {
             key_length: KeyLength::AES128,
         };
 
-        let actual = aes_decrypt(test_data);
+        let actual = aes_decrypt(test_data, Mode::ECB);
 
         let expected = vec![vec![
             vec![0xF3, 0x3C, 0xCD, 0x08],
@@ -486,7 +492,7 @@ mod tests {
             key_length: KeyLength::AES128,
         };
 
-        let actual = aes_decrypt(test_data);
+        let actual = aes_decrypt(test_data, Mode::ECB);
 
         let expected = vec![vec![
             vec![0xB2, 0x74, 0x35, 0x78],
@@ -508,7 +514,7 @@ mod tests {
             key_length: KeyLength::AES128,
         };
 
-        let actual = aes_decrypt(test_data);
+        let actual = aes_decrypt(test_data, Mode::ECB);
 
         let expected = vec![
             vec![
@@ -536,7 +542,7 @@ mod tests {
             key_length: KeyLength::AES128,
         };
 
-        let actual = aes_decrypt(test_data);
+        let actual = aes_decrypt(test_data, Mode::ECB);
 
         let expected = vec![vec![
             vec![0x32, 0x88, 0x31, 0xe0],
@@ -557,7 +563,7 @@ mod tests {
             key_length: KeyLength::AES256,
         };
 
-        let actual = aes_decrypt(test_data);
+        let actual = aes_decrypt(test_data, Mode::ECB);
 
         let expected = vec![vec![
             vec![0x00, 0x44, 0x88, 0xCC],

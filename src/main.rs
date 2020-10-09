@@ -2,7 +2,7 @@ mod aes;
 mod constants;
 mod utils;
 
-use aes::{Base, KeyLength, KeyTextPair};
+use aes::{Base, KeyLength, KeyTextPair, Mode};
 use std::{
     fs::File,
     io::{prelude::*, BufReader},
@@ -21,7 +21,7 @@ fn main() {
         key_length: KeyLength::AES128,
     };
 
-    let decrypted_bytes = aes::aes_decrypt(input_data);
+    let decrypted_bytes = aes::aes_decrypt(input_data, Mode::ECB);
 
     match aes::utf8_from_aes_grids(decrypted_bytes) {
         Ok(s) => println!("Decrypted bytes: {}", s),
